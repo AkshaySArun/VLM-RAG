@@ -31,19 +31,20 @@ class PDFParser:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.image_dir.mkdir(parents=True, exist_ok=True)
 
-    def extract_content(self, pdf_path: str) -> List[Dict[str, Any]]:
+    def extract_content(self, pdf_path: str, paper_id: str = None, filename: str = None) -> List[Dict[str, Any]]:
         """
         Parses a PDF file and extracts text, structured tables, and images.
         Uses unstructured for layout/tables and PyMuPDF for images.
         """
-        doc_id = os.path.basename(pdf_path)
+        raw_filename = os.path.basename(pdf_path)
+        paper_id = paper_id or raw_filename
+        display_name = filename or raw_filename
         chunks = []
         
-        print(f"[*] Processing document: {doc_id}")
+        print(f"[*] Processing document: {display_name} (ID: {paper_id})")
         
         try:
             # strategy="fast" extracts text directly from the PDF stream.
-            # It completely bypasses the need for Tesseract OCR.
             elements = partition_pdf(
                 filename=pdf_path,
                 strategy="fast",
@@ -57,22 +58,50 @@ class PDFParser:
                 content_type = "table" if element_type == "table" else "text"
                 
                 chunks.append({
-                    "doc_id": doc_id,
+                    "doc_id": paper_id,
+                    "paper_id": paper_id,
                     "page": page_number,
                     "type": content_type,
                     "content": str(element),
                     "metadata": {
-                        "source": pdf_path,
+                        "paper_id": paper_id,
+                        "filename": display_name,
+                        "source": display_name,
                         "page_number": page_number,
                         "content_type": content_type,
-                        "element_id": f"{doc_id}_el_{i}"
+                        "element_id": f"{paper_id}_el_{i}"
                     }
                 })
         except Exception as e:
-            print(f"[!] Unstructured parsing failed for {doc_id} (Text/Tables might be missing): {e}")
+            print(f"[!] Unstructured parsing failed for {display_name} (Text/Tables fallback to PyMuPDF text extraction): {e}")
+            # PyMuPDF fallback for text if unstructured fails
+            try:
+                doc = fitz.open(pdf_path)
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    text = page.get_text()
+                    if text.strip():
+                        chunks.append({
+                            "doc_id": paper_id,
+                            "paper_id": paper_id,
+                            "page": page_num + 1,
+                            "type": "text",
+                            "content": text,
+                            "metadata": {
+                                "paper_id": paper_id,
+                                "filename": display_name,
+                                "source": display_name,
+                                "page_number": page_num + 1,
+                                "content_type": "text",
+                                "element_id": f"{paper_id}_mupdf_{page_num+1}"
+                            }
+                        })
+                doc.close()
+            except Exception as e2:
+                print(f"[!] PyMuPDF text extraction also failed for {display_name}: {e2}")
 
         try:
-            # 2. Extract raw images using PyMuPDF (No Tesseract needed)
+            # 2. Extract raw images using PyMuPDF
             doc = fitz.open(pdf_path)
             for page_num in range(len(doc)):
                 page = doc[page_num]
@@ -84,7 +113,7 @@ class PDFParser:
                     image_bytes = base_image["image"]
                     image_ext = base_image["ext"].lower()
                     
-                    # 1. Skip very small files (usually logos, icons, spacing elements)
+                    # 1. Skip very small files (logos, icons, spacing elements)
                     if len(image_bytes) < 10240: 
                         continue
                         
@@ -92,20 +121,20 @@ class PDFParser:
                     if image_ext not in ["png", "jpg", "jpeg"]:
                         continue
                     
-                    # 3. Filter out "black" or near-empty images (common for masks)
+                    # 3. Filter out pure black or near-empty images
                     try:
                         img_pil = Image.open(io.BytesIO(image_bytes))
-                        # Convert to grayscale to check brightness
                         grayscale = img_pil.convert("L")
                         mean_brightness = np.mean(np.array(grayscale))
-                        if mean_brightness < 2 or mean_brightness > 253: # Skip pure black or pure white
+                        if mean_brightness < 2 or mean_brightness > 253:
                             continue
                     except Exception:
-                        continue # Skip if Pillow can't open it
+                        continue
                         
                     # Generate unique hash for the image
                     img_hash = hashlib.md5(image_bytes).hexdigest()
-                    img_filename = f"{doc_id.replace('.', '_')}_p{page_num+1}_img{img_index}_{img_hash[:8]}.{image_ext}"
+                    safe_paper_id = "".join(c if c.isalnum() else "_" for c in paper_id)
+                    img_filename = f"{safe_paper_id}_p{page_num+1}_img{img_index}_{img_hash[:8]}.{image_ext}"
                     img_path = self.image_dir / img_filename
                     
                     if not img_path.exists():
@@ -120,25 +149,28 @@ class PDFParser:
                         print(f"    [OCR] Extracted: {ocr_text[:50]}...", flush=True)
 
                     chunks.append({
-                        "doc_id": doc_id,
+                        "doc_id": paper_id,
+                        "paper_id": paper_id,
                         "page": page_num + 1,
                         "type": "image",
                         "content": str(img_path),
                         "ocr_text": ocr_text,
                         "metadata": {
-                            "source": pdf_path,
+                            "paper_id": paper_id,
+                            "filename": display_name,
+                            "source": display_name,
                             "page_number": page_num + 1,
                             "content_type": "image",
                             "image_path": str(img_path),
-                            "ocr_text": ocr_text
+                            "ocr_text": ocr_text or ""
                         }
                     })
             doc.close()
         except Exception as e:
-            print(f"[!] Image extraction failed for {doc_id}: {e}")
+            print(f"[!] Image extraction failed for {display_name}: {e}")
 
         if chunks:
-            print(f"[+] Successfully extracted {len(chunks)} elements from {doc_id}")
+            print(f"[+] Successfully extracted {len(chunks)} elements from {display_name}")
             return chunks
         else:
             return []

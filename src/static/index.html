@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multimodal Research Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+    <!-- Marked for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- KaTeX for math equation rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar: Paper Management -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </div>
+                <h2>Research AI</h2>
+            </div>
+
+            <div class="upload-section">
+                <h3>Upload Research Paper</h3>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </div>
+                    <p>Drag and drop PDF here</p>
+                    <span class="or-divider">or</span>
+                    <label for="fileInput" class="btn-choose">Choose PDF</label>
+                    <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+                </div>
+            </div>
+
+            <div class="papers-list-section">
+                <div class="section-header">
+                    <h3>Uploaded Papers</h3>
+                    <button class="btn-refresh" id="btnRefresh" title="Refresh list">↻</button>
+                </div>
+                <div class="papers-list" id="papersList">
+                    <div class="empty-state">No papers uploaded yet</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="active-paper-info" id="activePaperHeader">
+                    <h2 id="activePaperTitle">Select or Upload a Research Paper</h2>
+                    <span class="badge" id="activePaperBadge" style="display:none;">Ready</span>
+                </div>
+                <div class="paper-stats" id="activePaperStats" style="display:none;">
+                    <div class="stat-item"><span class="stat-num" id="statPages">0</span> Pages</div>
+                    <div class="stat-item"><span class="stat-num" id="statChunks">0</span> Chunks</div>
+                    <div class="stat-item"><span class="stat-num" id="statFigures">0</span> Figures</div>
+                </div>
+            </header>
+
+            <!-- Processing Status Banner -->
+            <div class="processing-card" id="processingCard" style="display: none;">
+                <div class="processing-header">
+                    <span class="spinner"></span>
+                    <span id="processingTitle">Processing Paper...</span>
+                    <span id="processingPercent">0%</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+                </div>
+                <p class="processing-msg" id="processingMessage">Parsing PDF content...</p>
+            </div>
+
+            <!-- Chat Container -->
+            <div class="chat-container">
+                <div class="messages-area" id="messagesArea">
+                    <div class="welcome-card">
+                        <div class="welcome-icon">📄🔍</div>
+                        <h2>Multimodal Research Paper QA</h2>
+                        <p>Upload a PDF research paper on the left to extract text, tables, figures, and start asking questions grounded directly in the paper.</p>
+                    </div>
+                </div>
+
+                <!-- Input Box -->
+                <div class="input-container">
+                    <form id="chatForm" class="chat-form">
+                        <textarea id="userInput" placeholder="Ask a question about the active paper..." rows="1" disabled></textarea>
+                        <button type="submit" id="btnSend" class="btn-send" disabled>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -80,6 +80,18 @@ class ChromaManager:
     def get_count(self) -> int:
         return self.vectorstore._collection.count()
 
+    def delete_paper(self, paper_id: str) -> bool:
+        """
+        Deletes all documents/embeddings associated with a paper_id.
+        """
+        try:
+            self.vectorstore._collection.delete(where={"paper_id": paper_id})
+            print(f"[+] Deleted vector store entries for paper_id: {paper_id}")
+            return True
+        except Exception as e:
+            print(f"[!] Error deleting vectors for paper_id {paper_id}: {e}")
+            return False
+
 if __name__ == "__main__":
     # Quick sanity check
     manager = ChromaManager()
