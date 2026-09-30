@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 📚 Multimodal RAG System for Research Analysis
 
 A heavy-duty Retrieval-Augmented Generation (RAG) system engineered to synthesize complex information from text, structured tables, and diagrams. Optimized for analyzing seminal ML/AI research papers, this system uses a multimodal embedding space to bridge the gap between visual and textual data.
@@ -133,3 +134,6 @@ Use `evaluation.ipynb` to measure the **Hit Rate @ 1** and **MRR** across your d
 - `src/retrieval`: Cross-modal semantic search logic.
 - `src/generation`: Groq-based technical response generation.
 - `tests/`: Automated unit and integration suites.
+=======
+# VLM-RAG
+>>>>>>> ffbd7a75492fd8cc397c201063a7e78b2d49f993
