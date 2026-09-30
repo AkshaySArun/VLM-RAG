@@ -1,139 +1,192 @@
-<<<<<<< HEAD
-# 📚 Multimodal RAG System for Research Analysis
+# 📚 Multimodal Research Paper Question Answering System
 
-A heavy-duty Retrieval-Augmented Generation (RAG) system engineered to synthesize complex information from text, structured tables, and diagrams. Optimized for analyzing seminal ML/AI research papers, this system uses a multimodal embedding space to bridge the gap between visual and textual data.
-
-## 🚀 Key Features
-
--   **🔬 Research-First Design**: Tailored to analyze dense scientific papers like *Attention Is All You Need*, *Adam*, and *ResNet*.
--   **🖼️ Multimodal Intelligence**: Uses **CLIP (ViT-B-32)** to place text and images in a shared semantic space, enabling cross-modal retrieval.
--   **⚡ Lightning Inference**: Powered by **Groq** and **Llama-4-Scout** for sub-second, technically grounded reasoning.
--   **📝 OCR & Layout Analysis**: Employs `unstructured` and `pytesseract` to extract logic from diagrams and preserve table structures.
--   **🐳 Dockerized Deployment**: Fully containerized for consistent deployment across environments.
+A high-performance, document-isolated Retrieval-Augmented Generation (RAG) system engineered to analyze complex scientific papers. The system extracts text, structured tables, and figures/diagrams (with EasyOCR enrichment), generates multimodal CLIP embeddings, stores them in ChromaDB with document isolation, and delivers grounded answers with page citations using Groq LLMs.
 
 ---
 
-## 🏗️ System Workflow
+## 🚀 Key Features
+
+- **📄 Document Isolation**: Vector search is strictly filtered by `paper_id` so that questions about one paper never retrieve chunks from unrelated papers.
+- **🖼️ Multimodal Extraction & OCR**: Extracts text, tables, and figures using **PyMuPDF**, **Unstructured**, and **EasyOCR**.
+- **⚡ Multimodal Vector Embeddings**: Uses **CLIP (ViT-B-32)** to embed text and images into a shared semantic space.
+- **🤖 Configurable Groq LLM Generation**: Configurable via `LLM_MODEL` in `.env` (e.g., `openai/gpt-oss-120b` or `llama-3.3-70b-versatile`).
+- **📌 Page Citations & Groundedness**: Every answer cites specific source page numbers (e.g., *Page 3*, *Page 4*) and LaTeX mathematical formulas.
+- **💻 Modern Dark-Mode Web UI**: Built-in glassmorphism frontend featuring drag-and-drop PDF upload, real-time progress bar, paper list sidebar, and interactive Q&A chat.
+- **🧩 Decoupled Architecture**: Service layer (`PaperService`, `PaperRepository`, `MultimodalRetriever`, `MultimodalGenerator`) decoupled from FastAPI routes for future MCP (Model Context Protocol) tool integration.
+
+---
+
+## 🏗️ System Architecture & Workflow
 
 ```mermaid
-graph TD
-    User((User)) -->|Text Query| API[FastAPI Server]
+flowchart TD
+    User((User / Web UI)) -->|Upload PDF| API_Upload[POST /api/v1/papers/upload]
+    API_Upload -->|Save PDF & Init Repo| Service[PaperService]
     
-    subgraph Ingestion
-        Docs[PDFs/Images/Txt] --> Parser[PDF & Image Parsers]
-        Parser --> OCR[OCR Engine]
-        Parser --> Tables[Table Extractor]
+    subgraph Background Processing Pipeline
+        Service -->|1. Layout & Table Extraction| Unstructured[Unstructured PDF Parser]
+        Service -->|2. Image & Figure Extraction| PyMuPDF[PyMuPDF fitz Engine]
+        PyMuPDF -->|3. Run Text Recognition| EasyOCR[EasyOCR Engine]
+        
+        Unstructured --> Chunks[Chunking with paper_id & page_number Metadata]
+        EasyOCR --> Chunks
     end
     
-    subgraph Shared Embedding Space
-        OCR --> CLIP[CLIP Embedder]
-        Tables --> CLIP
-        Text --> CLIP
-        CLIP --> Chroma[(ChromaDB)]
-    end
+    Chunks -->|4. Generate 512d Vector Embeddings| CLIP[CLIP ViT-B-32 Embedder]
+    CLIP -->|5. Store Chunks & Vectors| Chroma[(ChromaDB)]
     
-    subgraph Retrieval & Synthesis
-        API --> Retriever[Multimodal Retriever]
-        Retriever -->|Semantic Search| Chroma
-        Chroma -->|Text + Image OCR| Retriever
-        Retriever --> Generator[Groq Llama-4-Scout]
-        Generator -->|Technical Response| User
-    end
+    User -->|Ask Question| API_Query[POST /api/v1/papers/{paper_id}/query]
+    API_Query -->|Document Isolated Retrieval where paper_id| Retriever[MultimodalRetriever]
+    Retriever -->|Metadata Filter Search| Chroma
+    Chroma -->|Relevant Text/Tables/Images| Retriever
+    Retriever -->|Format Context| Generator[MultimodalGenerator]
+    Generator -->|API Request| Groq[Groq LLM API]
+    Groq -->|Grounded Answer + Page Citations| User
 ```
 
 ---
 
-## 🛠️ Setup & Installation
+## 🛠️ Installation & Setup
 
-### 1. Prerequisites
-- Python 3.10+ or **Docker**
-- **Groq API Key**: Obtain from [Groq Console](https://console.groq.com/).
+### Prerequisites
+- **Python 3.10+** (Python 3.10 - 3.14 supported)
+- **Groq API Key**: Get a free API key from [Groq Console](https://console.groq.com/).
 
-### 2. Local Setup (Recommended for Dev)
+### 1. Environment Configuration
+Create a `.env` file in the project root (or copy `.env.example`):
+```ini
+GROQ_API_KEY=your_groq_api_key_here
+
+# LLM Model Configuration
+LLM_MODEL=openai/gpt-oss-120b
+
+# Paths for data storage
+VECTOR_DB_PATH=./data/chroma
+UPLOAD_DIR=./data/uploads
+PROCESSED_DATA_PATH=./data/processed
+IMAGE_EXTRACTION_PATH=./data/processed/images
+RAW_DATA_PATH=./sample_documents
+
+# Upload limits
+MAX_UPLOAD_SIZE_MB=50
+
+# Logging
+LOG_LEVEL=INFO
+```
+
+### 2. Local Setup (Virtual Environment)
 ```bash
-# Clone and enter the repository
-git clone <your-repo-url>
-cd <repo-name>
+# Clone the repository
+git clone <repo-url>
+cd Multimodal-RAG-Pipeline-Text-Img
 
-# Set up virtual environment
+# Create virtual environment
 python -m venv .venv
+
+# Activate virtual environment (Windows PowerShell)
 .\.venv\Scripts\activate
+# Activate virtual environment (Linux / macOS)
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Docker Deployment (Recommended for Production)
+### 3. Docker Deployment
 ```bash
-# Build and run the system
+# Build and run with docker-compose
 docker-compose up --build
 ```
 
 ---
 
-## 🖥️ API Usage
+## 🖥️ Running in VS Code
 
-### ⚙️ 1. Ingestion
-Trigger the ingestion of all files in the `sample_documents/` folder.
-- **Endpoint**: `POST /ingest`
-- **Response**:
-```json
-{
-  "status": "success",
-  "message": "Ingestion started for 14 files.",
-  "files": ["Attention Is All You Need.pdf", "transformer_diagram.png", "research_notes.txt"]
-}
+### Option A: Press F5 (One-Click Run)
+1. Open the repository in VS Code.
+2. Press **`F5`** (or go to **Run and Debug** `Ctrl+Shift+D`).
+3. Select **`FastAPI: Run Server`** and press Play.
+
+### Option B: VS Code Terminal
+```powershell
+.venv\Scripts\python.exe -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 🔍 2. Multimodal Query
-Ask technical questions about your research documents.
-- **Endpoint**: `POST /query`
-- **Request Body**:
-```json
-{
-  "query": "Explain the Transformer multi-head attention mechanism with citations.",
-  "n_results": 5
-}
-```
-- **Example Response**:
-```json
-{
-  "answer": "Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions. As shown in Figure 2 of 'Attention Is All You Need' (Page 4), it consists of several attention layers running in parallel...",
-  "sources": [
-    {
-      "document_id": "Attention Is All You Need.pdf",
-      "page_number": 4,
-      "content_type": "image",
-      "image_path": "./data/processed/Attention_Is_All_You_Need_p4_img1.png"
-    },
-    {
-      "document_id": "Attention Is All You Need.pdf",
-      "page_number": 4,
-      "content_type": "text"
-    }
-  ]
-}
-```
+- **Web Assistant UI**: [http://localhost:8000](http://localhost:8000)
+- **Swagger API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## 🧪 Multimodal Embeddings
-The system maps different modalities into a 512-dimensional vector space:
-- **Text**: Technical descriptions and OCR results.
-- **Images**: Diagrams, charts, and architectural drawings.
-- **Tables**: Serialized table structures for quantitative reasoning.
+## 📡 API Reference Specification
 
-Use `evaluation.ipynb` to measure the **Hit Rate @ 1** and **MRR** across your document set.
+### Paper Management & Q&A (`/api/v1/papers`)
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/v1/papers/upload` | Upload a research paper PDF (returns `paper_id`). |
+| `POST` | `/api/v1/papers/{paper_id}/process` | Start background processing (text/tables/images/embeddings). |
+| `GET` | `/api/v1/papers/{paper_id}/status` | Check processing status, progress percentage, and page counts. |
+| `GET` | `/api/v1/papers` | List all uploaded papers. |
+| `GET` | `/api/v1/papers/{paper_id}` | Get detailed paper metadata. |
+| `DELETE` | `/api/v1/papers/{paper_id}` | Delete paper PDF, extracted images, vector store records, and metadata. |
+| `POST` | `/api/v1/papers/{paper_id}/query` | Ask paper-isolated questions with page citations. |
+| `GET` | `/api/v1/health` | Health check endpoint and vector store status. |
+
+### Legacy Compatibility Endpoints
+- `GET /status` - Quick server and collection status.
+- `POST /ingest` - Triggers ingestion for documents in `./sample_documents`.
+- `POST /query` - Queries the most recently indexed paper.
+
+---
+
+## 🧪 Running Automated Tests
+
+Run the full pytest suite covering PDF upload validation, processing, status tracking, document isolation, Q&A generation, citations, 404 handling, and cleanup:
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests/test_api.py -v
+```
 
 ---
 
 ## 📂 Project Structure
-- `src/api`: FastAPI endpoints.
-- `src/ingestion`: Data processing pipeline (PDF, OCR, Tables).
-- `src/embeddings`: CLIP model integration.
-- `src/retrieval`: Cross-modal semantic search logic.
-- `src/generation`: Groq-based technical response generation.
-- `tests/`: Automated unit and integration suites.
-=======
-# VLM-RAG
->>>>>>> ffbd7a75492fd8cc397c201063a7e78b2d49f993
+
+```text
+Multimodal-RAG-Pipeline-Text-Img/
+├── src/
+│   ├── api/
+│   │   └── main.py              # FastAPI endpoints and static UI mounting
+│   ├── services/
+│   │   ├── paper_service.py     # High-level business logic orchestrator
+│   │   └── paper_repository.py  # JSON file persistence for paper states
+│   ├── ingestion/
+│   │   ├── document_parser.py   # PDF text, table, and image extractor
+│   │   └── image_processor.py   # EasyOCR text recognition
+│   ├── embeddings/
+│   │   └── model_loader.py      # CLIP ViT-B-32 multimodal embedder
+│   ├── vector_store/
+│   │   └── chroma_manager.py    # LangChain ChromaDB manager with filtering & deletion
+│   ├── retrieval/
+│   │   └── retriever.py         # Paper-isolated vector retriever
+│   ├── generation/
+│   │   └── generator.py         # Groq LLM grounded answer generator
+│   └── static/
+│       ├── index.html           # Dark-mode Web UI HTML
+│       ├── styles.css           # Glassmorphism styling & badges
+│       └── app.js               # Frontend interactive application logic
+├── data/
+│   ├── uploads/                 # Uploaded research paper PDFs
+│   ├── processed/               # Extracted images and figures
+│   ├── chroma/                  # ChromaDB vector store directory
+│   └── papers.json              # Paper metadata and state database
+├── sample_documents/            # Sample research paper PDFs
+├── tests/
+│   ├── test_api.py              # Comprehensive API & RAG test suite
+│   ├── test_integrated.py       # Integration tests
+│   └── manual_stress_test.py    # Stress testing script
+├── .env.example                 # Environment variable template
+├── .vscode/                     # VS Code launch & debug settings
+├── Dockerfile                   # System Docker containerization
+├── docker-compose.yml           # Multi-container orchestration
+└── requirements.txt             # Python dependencies
+```
